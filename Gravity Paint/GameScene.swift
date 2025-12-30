@@ -24,8 +24,7 @@ class GameScene: SKScene {
     private var lastDropletTime: TimeInterval = 0
     private let dropletInterval: TimeInterval = 0.05   // 20 droplets per second
 
-
-    private var modeLabel: SKLabelNode?
+    private var modeSprite: SKSpriteNode?
     private let cameraNode = SKCameraNode()
 
     override func didMove(to view: SKView) {
@@ -40,30 +39,64 @@ class GameScene: SKScene {
         self.camera = cameraNode
         addChild(cameraNode)
 
-        // Label: use SKS node if present, otherwise create it
-        let labelFromSks = childNode(withName: "//modeLabel") as? SKLabelNode
-        let label = labelFromSks ?? SKLabelNode(fontNamed: "AvenirNext-Bold")
+        let texture = makeOutlinedTextTexture(
+            text: "Mode: Marbles",
+            fontName: "AvenirNext-Heavy",
+            fontSize: 50,
+            fillColor: .blue,
+            strokeColor: .white,
+            strokeWidth: 3
+        )
 
-        label.removeFromParent()
-        label.fontSize = 50 
-        label.fontColor = .blue
-        label.horizontalAlignmentMode = .center
-        label.verticalAlignmentMode = .center
-        label.zPosition = 1000
+        let modeNode = SKSpriteNode(texture: texture)
+        modeNode.name = "modeToggle"
+        modeNode.zPosition = 1000
+        modeNode.position = CGPoint(x: 0, y: size.height * 0.35)
 
-        // Position in camera space (top left-ish)
-        label.position = CGPoint(x: 0, y: size.height * 0.3)
-
-        cameraNode.addChild(label)
-        modeLabel = label
+        cameraNode.addChild(modeNode)
+        self.modeSprite = modeNode
 
         updateModeLabel()
     }
 
+    private func makeOutlinedTextTexture(
+    text: String,
+    fontName: String,
+    fontSize: CGFloat,
+    fillColor: UIColor,
+    strokeColor: UIColor,
+    strokeWidth: CGFloat
+    ) -> SKTexture {
+        let font = UIFont(name: fontName, size: fontSize)!
+
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: fillColor,
+            .strokeColor: strokeColor,
+            .strokeWidth: -strokeWidth
+        ]
+
+        let size = text.size(withAttributes: attributes)
+        let renderer = UIGraphicsImageRenderer(size: size)
+
+        let image = renderer.image { _ in
+            text.draw(at: .zero, withAttributes: attributes)
+        }
+    return SKTexture(image: image)
+    }
+
     private func updateModeLabel() {
-        guard let modeLabel else { return }
-        let text = (mode == .marbles) ? "Mode: Marbles" : "Mode: Ink"
-        modeLabel.text = text + "  (tap to switch)"
+        let text = (mode == .marbles) ? "MODE: MARBLE" : "MODE: INK"
+
+        let texture = makeOutlinedTextTexture(
+            text: text,
+            fontName: "AvenirNext-Heavy",
+            fontSize: 50,
+            fillColor: .blue, 
+            strokeColor: .white, 
+            strokeWidth: 3
+        )
+        modeSprite?.texture = texture
     }
 
     private func toggleMode() {
@@ -164,12 +197,12 @@ class GameScene: SKScene {
         guard let touch = touches.first else { return }
         let p = touch.location(in: self)
 
-        if let modeLabel, modeLabel.parent === cameraNode {
-            let pInCamera = cameraNode.convert(p, from: self)
-            if modeLabel.contains(pInCamera) {
-                toggleMode()
-                return
-            }
+        let hit = nodes(at: p)
+        if hit.contains(where: { $0.name == "modeToggle" || $0.parent?.name == "modeToggle"}) {
+            mode = (mode == .marbles) ? .ink: .marbles
+            applyMode()
+            updateModeLabel()
+            return
         }
 
         switch mode {
