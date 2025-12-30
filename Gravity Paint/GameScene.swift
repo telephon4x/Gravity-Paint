@@ -12,21 +12,76 @@ import CoreMotion
 
 class GameScene: SKScene {
 
+    private enum PaintMode {
+        case marbles
+        case ink
+    }
+
+
+    private var mode: PaintMode = .marbles
+
     private var paintEmitter: SKEmitterNode?
     private var lastDropletTime: TimeInterval = 0
     private let dropletInterval: TimeInterval = 0.05   // 20 droplets per second
 
+
+    private var modeLabel: SKLabelNode?
+    private let cameraNode = SKCameraNode()
+
     override func didMove(to view: SKView) {
         backgroundColor = .black
-
-        // Physics world (still useful later if you mix modes)
-        physicsWorld.gravity = CGVector(dx: 0, dy: -9.8)
+        physicsWorld.gravity = CGVector(dx: 0.0, dy: -9.8)
         physicsBody = SKPhysicsBody(edgeLoopFrom: frame)
-
-        physicsBody = SKPhysicsBody(edgeLoopFrom: frame)
-        physicsWorld.gravity = CGVector(dx: 0, dy: -9.8)
 
         setupEmitter()
+        applyMode()
+
+        // Camera
+        self.camera = cameraNode
+        addChild(cameraNode)
+
+        // Label: use SKS node if present, otherwise create it
+        let labelFromSks = childNode(withName: "//modeLabel") as? SKLabelNode
+        let label = labelFromSks ?? SKLabelNode(fontNamed: "AvenirNext-Bold")
+
+        label.removeFromParent()
+        label.fontSize = 50 
+        label.fontColor = .blue
+        label.horizontalAlignmentMode = .center
+        label.verticalAlignmentMode = .center
+        label.zPosition = 1000
+
+        // Position in camera space (top left-ish)
+        label.position = CGPoint(x: 0, y: size.height * 0.3)
+
+        cameraNode.addChild(label)
+        modeLabel = label
+
+        updateModeLabel()
+    }
+
+    private func updateModeLabel() {
+        guard let modeLabel else { return }
+        let text = (mode == .marbles) ? "Mode: Marbles" : "Mode: Ink"
+        modeLabel.text = text + "  (tap to switch)"
+    }
+
+    private func toggleMode() {
+        mode = (mode == .marbles) ? .ink : .marbles
+        applyMode()
+        updateModeLabel()
+    }
+
+    private func applyMode() {
+        switch mode {
+        case .marbles:
+            paintEmitter?.particleBirthRate = 0
+            paintEmitter?.isHidden = true
+
+        case .ink:
+            paintEmitter?.particleBirthRate = 0
+            paintEmitter?.isHidden = false
+        }
     }
 
     private func spawnDroplet(at position: CGPoint) {
@@ -76,7 +131,7 @@ class GameScene: SKScene {
         emitter.particleAlphaRange = 0.15
         emitter.particleAlphaSpeed = -0.45
 
-        emitter.particleScale = 0.18
+        emitter.particleScale = 0.72
         emitter.particleScaleRange = 0.12
         emitter.particleScaleSpeed = -0.08
 
@@ -109,31 +164,49 @@ class GameScene: SKScene {
         guard let touch = touches.first else { return }
         let p = touch.location(in: self)
 
-        paintEmitter?.position = p
-        paintEmitter?.particleBirthRate = 220
+        if let modeLabel, modeLabel.parent === cameraNode {
+            let pInCamera = cameraNode.convert(p, from: self)
+            if modeLabel.contains(pInCamera) {
+                toggleMode()
+                return
+            }
+        }
 
-        spawnDroplet(at: p)
-        lastDropletTime = CACurrentMediaTime()
+        switch mode {
+        case .marbles:
+            spawnDroplet(at: p)
+        case .ink:
+            paintEmitter?.position = p
+            paintEmitter?.particleBirthRate = 220
+            spawnDroplet(at: p)
+        }
     }
 
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
         guard let touch = touches.first else { return }
         let p = touch.location(in: self)
 
-        paintEmitter?.position = p
-
-        let now = CACurrentMediaTime()
-        if now - lastDropletTime >= dropletInterval {
+        switch mode {
+        case .marbles:
+            // Paint marbles as you drag
             spawnDroplet(at: p)
-            lastDropletTime = now
+
+        case .ink:
+            paintEmitter?.position = p
+            // optional hybrid droplets while dragging:
+            spawnDroplet(at: p)
         }
     }
 
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
-        paintEmitter?.particleBirthRate = 0
+        if mode == .ink {
+            paintEmitter?.particleBirthRate = 0
+        }
     }
 
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
-        paintEmitter?.particleBirthRate = 0
+        if mode == .ink {
+            paintEmitter?.particleBirthRate = 0
+        }
     }
 }
