@@ -10,7 +10,9 @@ import GameplayKit
 
 class GameScene: SKScene {
     
-    private var spinnyNode : SKShapeNode?
+    private var isPainting = false
+    private var lastSpawnPoint: CGPoint?
+    private var spawnSpacing: CGFloat = 12
     
     override func didMove(to view: SKView) {
         backgroundColor = .black
@@ -34,7 +36,10 @@ class GameScene: SKScene {
     
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         guard let touch = touches.first else { return } 
+        isPainting = true
+
         let p = touch.location(in: self)
+        lastSpawnPoint = p
         spawnParticles(at: p)
     }
 
@@ -56,12 +61,43 @@ class GameScene: SKScene {
     }
     
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+        guard isPainting, let touch = touches.first else { return } 
+
+        let p = touch.location(in: self)
+
+        if let last = lastSpawnPoint {
+            let dx = p.x - last.x
+            let dy = p.y - last.y
+            let dist = sqrt(dx*dx + dy*dy)
+
+            if dist >= spawnSpacing {
+               let steps = Int(dist / spawnSpacing)
+               if steps > 0 {
+                  for i in 1...steps {
+                     let t = CGFloat(i) / CGFloat(steps)
+                     let x = last.x + dx * t
+                     let y = last.y + dy * t
+                     spawnParticles(at: CGPoint(x: x, y: y))
+                  
+                  }
+                  lastSpawnPoint = p
+               }
+            }
+        }
+        else {
+            lastSpawnPoint = p
+            spawnParticles(at: p)
+        }
     }
     
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+        isPainting = false
+        lastSpawnPoint = nil
     }
     
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+        isPainting = false
+        lastSpawnPoint = nil
     }
     
     
